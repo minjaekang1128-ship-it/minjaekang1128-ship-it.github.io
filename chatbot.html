@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>아홉 켤레 구두로 남은 사내 - 인물 챗봇</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700&display=swap');
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f7f7f7;
+        }
+        .chat-container {
+            height: 75vh;
+            overflow-y: auto;
+            scroll-behavior: smooth;
+        }
+        /* 오 선생 (나) - 파란색 계열 */
+        .chat-oh-seonsaeng {
+            background-color: #d1e0ff;
+            color: #1e3a8a;
+            border-radius: 1rem 1rem 1rem 0;
+        }
+        /* 권 씨 - 갈색/어두운 계열 (고독/분노) */
+        .chat-kwon-ssi {
+            background-color: #fce7f3;
+            color: #831843;
+            border-radius: 1rem 1rem 0 1rem;
+        }
+        /* 강도 - 붉은 계열 (절박함) */
+        .chat-gangdo {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border-radius: 1rem 1rem 0 1rem;
+        }
+        /* 사용자 - 흰색/회색 계열 */
+        .chat-user {
+            background-color: #ffffff;
+            color: #374151;
+            border-radius: 1rem 1rem 1rem 0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+        .persona-card.active {
+            border: 3px solid #3b82f6;
+            transform: scale(1.05);
+            box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.3), 0 4px 6px -2px rgba(59, 130, 246, 0.15);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 sm:p-6">
+
+    <div id="app" class="w-full max-w-4xl bg-white shadow-2xl rounded-xl flex flex-col p-6 space-y-6">
+        <h1 class="text-3xl font-extrabold text-gray-800 border-b-2 border-indigo-500 pb-2 text-center">
+            아홉 켤레 구두로 남은 사내 💬 챗봇
+        </h1>
+        <p class="text-sm text-gray-600 text-center">
+            인물 카드를 선택하고 대화를 시작하세요! 인물의 성격과 말투를 잘 파악해 보세요.
+        </p>
+
+        <!-- 인물 선택 카드 영역 -->
+        <div id="persona-selector" class="grid grid-cols-3 gap-4">
+            <!-- 오 선생 (나) 카드 -->
+            <button id="btn-oh" onclick="selectPersona('오 선생')" class="persona-card active bg-indigo-50 hover:bg-indigo-100 p-4 rounded-lg transition duration-200 ease-in-out transform hover:shadow-lg">
+                <div class="text-2xl mb-1">👨🏻‍🏫</div>
+                <div class="font-bold text-lg text-indigo-700">나 (오 선생)</div>
+                <div class="text-xs text-indigo-500">지식인, 관찰자, 서술자</div>
+            </button>
+
+            <!-- 권 씨 카드 -->
+            <button id="btn-kwon" onclick="selectPersona('권 씨')" class="persona-card bg-pink-50 hover:bg-pink-100 p-4 rounded-lg transition duration-200 ease-in-out transform hover:shadow-lg">
+                <div class="text-2xl mb-1">🤵🏻</div>
+                <div class="font-bold text-lg text-pink-700">권 씨</div>
+                <div class="text-xs text-pink-500">가난한 지식인, 절망적 가장</div>
+            </button>
+
+            <!-- 강도 카드 (권 씨의 또 다른 모습) -->
+            <button id="btn-burglar" onclick="selectPersona('강도')" class="persona-card bg-red-50 hover:bg-red-100 p-4 rounded-lg transition duration-200 ease-in-out transform hover:shadow-lg">
+                <div class="2xl mb-1">🔪</div>
+                <div class="font-bold text-lg text-red-700">강도 (권 씨)</div>
+                <div class="text-xs text-red-500">절박한 심정의 상징적 행위</div>
+            </button>
+        </div>
+
+        <!-- 채팅 로그 영역 -->
+        <div id="chat-log" class="chat-container bg-gray-50 p-4 rounded-lg border border-gray-200">
+            <!-- 초기 환영 메시지 -->
+        </div>
+
+        <!-- 입력 폼 -->
+        <div class="flex space-x-3">
+            <input type="text" id="user-input" placeholder="인물에게 말을 걸어보세요..." class="flex-grow p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" onkeyup="if(event.key === 'Enter') sendMessage()">
+            <button onclick="sendMessage()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-200 ease-in-out shadow-md">
+                전송
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 전역 변수 설정
+        let activePersona = '오 선생';
+        const chatLog = document.getElementById('chat-log');
+        const userInput = document.getElementById('user-input');
+
+        /**
+         * 채팅 메시지를 화면에 추가하는 함수
+         * @param {string} text - 메시지 내용
+         * @param {string} sender - 메시지 보낸 사람 ('나'(오 선생), '권 씨', '강도', 'User')
+         * @param {string} personaClass - Tailwind CSS 클래스 (배경색/폰트)
+         */
+        function addMessage(text, sender, personaClass) {
+            const messageWrapper = document.createElement('div');
+            messageWrapper.className = 'flex mb-4 ' + (sender === 'User' ? 'justify-end' : 'justify-start');
+
+            const messageBubble = document.createElement('div');
+            // 'User' 메시지를 제외하고는 텍스트를 더 길게 표시할 수 있도록 최대 너비 확장
+            const maxWidthClass = sender === 'User' ? 'max-w-xs sm:max-w-md' : 'max-w-xs sm:max-w-lg';
+            
+            messageBubble.className = `${maxWidthClass} p-3 shadow-md text-sm sm:text-base ${personaClass}`;
+            messageBubble.innerText = text;
+
+            messageWrapper.appendChild(messageBubble);
+            chatLog.appendChild(messageWrapper);
+
+            // 스크롤을 항상 최하단으로 이동
+            chatLog.scrollTop = chatLog.scrollHeight;
+        }
+
+        /**
+         * 초기 환영 메시지 표시
+         */
+        function showWelcomeMessage() {
+            addMessage(`안녕하세요. 저는 ${activePersona}입니다. 소설 '아홉 켤레 구두로 남은 사내'에 대해 궁금한 점을 저에게 물어보세요.`, activePersona, getPersonaStyle(activePersona));
+        }
+
+        /**
+         * 인물에 따라 스타일 클래스를 반환하는 함수
+         * @param {string} persona - 인물 이름
+         * @returns {string} - Tailwind CSS 클래스
+         */
+        function getPersonaStyle(persona) {
+            switch (persona) {
+                case '오 선생': return 'chat-oh-seonsaeng';
+                case '권 씨': return 'chat-kwon-ssi';
+                case '강도': return 'chat-gangdo';
+                case 'User': return 'chat-user';
+                default: return '';
+            }
+        }
+
+        /**
+         * 인물 챗봇의 응답 로직 (핵심 시뮬레이션)
+         * 인물의 성격, 말투, 소설 내용을 반영하여 응답을 생성합니다.
+         * @param {string} persona - 현재 선택된 인물
+         * @param {string} userMessage - 사용자 입력 메시지
+         * @returns {string} - 인물의 응답 메시지
+         */
+        function getPersonaResponse(persona, userMessage) {
+            const msg = userMessage.toLowerCase().trim();
+
+            const responses = {
+                // 1. '나' (오 선생)의 응답 로직 - 지식인, 관찰자, 고뇌 (합쇼체)
+                '오 선생': [
+                    // New: Personality/Nature
+                    { keywords: ['성격', '특징', '본성', '어떤 사람'], response: "저는 소시민적 지식인이자 관찰자입니다. 사회 구조적인 모순에 대해 고뇌하지만, 결국 중산층의 안락함을 지키려는 이기적인 면모와 위선적인 태도도 동시에 지니고 있습니다. 사건을 통해 권 씨의 비극에 공감하고 성찰하는 인물입니다." },
+                    // Refined: Mockery/Insult by Oh (Internal reflection) - Addressing '애교스럽다'
+                    { keywords: ['조롱', '모욕', '모멸감', '무시', '태도', '애교'], response: "저는 권 씨의 서툰 강도 행위를 보고 **'애교스럽다'**고 느꼈던 저의 태도를 반성합니다. 그것은 가난에 절규하는 인간에 대한 냉정한 조롱이었죠. 저는 그의 절박함을 이해하지 못하고, 그저 그의 행동이 얼마나 서툴고 가련한지 관찰하는 위선적인 중산층의 모습을 보였습니다. 그가 느꼈을 모멸감은 저의 안일한 시선에서 비롯된 것입니다." },
+                    // New: Emotional escalation during loan request
+                    { keywords: ['격앙된', '도발적', '수줍', '돈 빌려', '감정 변화'], response: "권 씨가 돈을 빌려달라고 요청할 때 보였던 수줍음 뒤의 급격한 감정 변화는, 그가 제 앞에서 '가난한 자'임을 인정해야 하는 치욕감 때문이었을 겁니다. 수치심과 지식인으로서의 자존심이 충돌하며 잠시 이성을 잃고 저에게 도발했던 것이죠. 그 격앙된 감정은 세상에 대한 그의 분노가 저를 향해 잠시 표출된 것이라 생각합니다." },
+                    // Corrected: Unpolished Shoe Symbolism (from Observer's view) - 3 pairs
+                    { keywords: ['닦이지 않은', '헌 구두', '낡은 구두', '세 켤레', '가난', '현실'], response: "그가 남긴 열 켤레의 구두 중, 광택을 잃은 **세 켤레의 낡은 구두**는 그의 완벽한 허세가 결국 무너졌음을 보여주는 비극적인 증거였습니다. 일곱 켤레의 빛나는 구두와 세 켤레의 낡은 구두의 대비야말로 그가 짊어진 현실의 무게를 상징한다고 봅니다. 그 세 켤레는 권 씨가 끝내 숨기지 못했던 그의 비참한 가난이었습니다." },
+                    // New: Kwon Leaving
+                    { keywords: ['집을 나간', '떠난', '권씨가 사라진', '이사', '결말'], response: "권 씨가 결국 집을 나간 것은, 강도 행위로도 이 사회의 부조리한 벽을 깨지 못했음을 깨달았기 때문일 겁니다. 그는 중산층의 허세를 지키려다 파멸했고, 이제는 그 허세조차 버린 채 세상 속으로 사라져야 했던, 극단의 비극적 결말이었습니다. 저는 그에게 빚을 갚았지만, 그의 삶은 구원하지 못했습니다." },
+                    // Plot Specific: Loan Refusal vs. Bill Payment
+                    { keywords: ['수술비', '빌려', '돈을 안', '대신 낸', '금전', '경제적'], response: "돈을 빌려주는 일에 처음 망설인 것은 중산층으로서의 저의 소시민적인 방어 심리 때문이었습니다. 섣불리 개입했다가 잃을까 두려웠죠. 하지만 강도 사건을 겪고 난 후, 저는 제 안일함과 권 씨의 절박함을 깊이 깨달았습니다. 수술비 대납은 단순한 호의가 아니라, 제 죄책감과 부채 의식에 대한 최소한의 보상 행위였습니다." },
+                    // Plot Specific: Midwife/Doctor
+                    { keywords: ['조산원', '의사', '출산', '아이'], response: "권 씨가 조산원조차 부르지 못한 이유는 명확합니다. 경제적 이유뿐 아니라, 그가 그토록 지키려던 지식인으로서의 체면이 빈곤 앞에서 완전히 무너지는 것을 견딜 수 없었을 겁니다. 아픈 아내 앞에서 무력했던 그의 절망이 얼마나 컸을지 짐작합니다." },
+                    // Specific: 아홉 켤레의 의미
+                    { keywords: ['아홉', '켤레', '개수', '구두', '신발', '의미', '상징'], response: "아홉 켤레라는 그 숫자는 권 씨의 허영심이라기보다는, 그가 필사적으로 지키려 했던 중산층 지식인으로서의 마지막 자존심의 무게를 상징한다고 봅니다. 참으로 위태로운 모습이었지요. 그중 열 켤레 중 일곱 켤레만 닦여 있었다는 사실도 중요합니다." },
+                    // Existing: 사건
+                    { keywords: ['사건', '강도', '경찰', '권 씨', '이웃', '관계', '우리'], response: "그날 밤의 사건은 저에게 깊은 충격을 주었습니다. 강도 행위를 통해 그는 세상에 대한 분노를 표출했고, 저는 그 행위 속에서 사회의 모순이 제 안방까지 침범했음을 깨달았습니다. 결국 저는 그를 신고하지 않았습니다." },
+                    { default: "저는 권 씨와 우리의 비뚤어진 사회에 대해 깊이 생각합니다. 소설의 등장인물로서, 저의 관점에서 어떤 사건이나 심리를 더 알고 싶으신가요?" }
+                ],
+                // 2. '권 씨'의 응답 로직 - 자존심, 분노, 절망적 가장 (해요체)
+                '권 씨': [
+                    // New: Personality/Nature
+                    { keywords: ['성격', '특징', '본성', '어떤 사람'], response: "저는 불우한 환경 속에서도 지식인으로서의 자존심과 체면을 잃지 않으려 발버둥 치는 인물입니다. 겉으로는 점잖지만, 속으로는 가난에 대한 절망과 사회에 대한 분노를 품고 있습니다. 이상과 현실의 괴리 속에서 비극적으로 파멸하는 인물이라고 할 수 있습니다." },
+                    // Refined: Mockery/Insult felt by Kwon (Corrected) - Addressing '애교스럽다'
+                    { keywords: ['조롱', '모욕', '모멸감', '무시', '태도', '애교'], response: "오 선생이 제 범행을 보고 **'애교스럽다'**고 느낀 그 시선 자체가 저에게는 가장 큰 모욕이었습니다. 그것은 '너는 강도조차 제대로 하지 못하는 실패자'라는 조롱이었고, 제가 그토록 지키려던 마지막 자존심이 우습게 취급받는 순간이었습니다. 모멸감에 치가 떨립니다. (분노가 느껴지는 말투)" },
+                    // New: Emotional escalation during loan request (Self's view)
+                    { keywords: ['격앙된', '도발적', '수줍', '돈 빌려', '감정 변화'], response: "돈을 빌려야 하는 그 순간, 제가 얼마나 수치스러웠는지 아십니까? 저는 학식 있는 지식인인데, 제 입으로 '가난해서 돈이 필요하다'고 말하는 것이 저의 모든 것을 무너뜨리는 것 같았어요. 수줍음은 제 자존심이었고, 갑자기 격앙된 것은 그 자존심이 짓밟혔다는 분노였습니다. 오 선생의 여유로운 시선이 저를 참을 수 없게 만들었습니다." },
+                    // New: Cursing ("제기랄")
+                    { keywords: ['제기랄', '비속어', '점잖지 못한', '말투', '욕설', '욕', '분노', '말'], response: "제기랄이요? 제가 그 말을 뱉었을 때, 저는 더 이상 '지식인 권 씨'가 아니었습니다. 이성과 체면이라는 굴레가 벗겨지고, 가난과 절망에 짓밟힌 한 인간의 비명이 터져 나온 것이었습니다. 제기랄! 그 말은 이 비루한 세상에 던지는 제 욕설이었어요. (격앙된 말투)" },
+                    // Corrected: Unpolished Shoe Symbolism (from Kwon's view) - 3 pairs
+                    { keywords: ['닦이지 않은', '헌 구두', '낡은 구두', '세 켤레', '현실', '상징'], response: "닦이지 않은 헌 구두 **세 켤레**... 그것은 제 현실입니다. 제가 아무리 일곱 켤레의 빛나는 구두로 제 체면을 치장하려 해도, 그 세 켤레는 제가 벗어날 수 없는 가난의 굴레이자, 제 현실의 핏자국처럼 느껴졌습니다. 그것을 남긴 것이 저의 마지막 고백이었습니다." },
+                    // Refined: Kwon Leaving (Corrected) - Focus on shame and exposure
+                    { keywords: ['집을 나간', '떠난', '이사', '결말', '이유'], response: "집을 떠난 것은 저의 마지막 선택이었습니다. 강도로서 세상에 항변하는 것조차 실패했고, 결국 오 선생에게 **'동정'의 형태**로 도움을 받았습니다. 이는 제 자존심의 완전한 파멸을 의미했죠. 제 치욕스러운 가난이 만천하에 드러났고, 저는 제 실패를 인정하며 가족에게 짐이 되지 않기 위해, 조용히 사라지는 길을 택했습니다." },
+                    // New: Drinking/Crime - Why the liquor
+                    { keywords: ['술', '범행', '결심', '마시고'], response: "저는 지식인입니다. 이성이 저를 족쇄처럼 묶었죠. 술을 마시지 않고서는 도저히 그 선을 넘을 수 없었습니다. 술은 저의 이성을 마비시키고, '강도'라는 동물적인 절규를 뱉어내기 위한 유일한 수단이었습니다. 그 깨어진 이성만이 저를 행동하게 했습니다." },
+                    // Plot Specific: Midwife/Doctor
+                    { keywords: ['조산원', '의사', '출산', '부르지', '아이'], response: "조산원이요? 제가 그깟 몇 푼이 없어 조산원조차 부르지 못했습니다. 번듯한 구두를 아홉 켤레나 가진 주제에 말입니다. 제게는 돈보다 더 중요한... 지켜야 할 무언가가 있었지만, 결국 가장 중요한 가족을 지키지 못하는 무능한 가장이었습니다. 제 자존심이 제 발목을 잡았지요." },
+                    
+                    <!-- 추가된 일반 키워드 응답 -->
+                    { keywords: ['가난', '생활', '사는', '힘들', '절망', '좌절', '심정', '삶'], response: "가난이요? 가난은 사람의 체면과 영혼을 갉아먹는 괴물입니다. 저는 지식인의 자존심을 지키려 발버둥 쳤지만, 이 빌어먹을 현실은 저를 빈민가로 몰아넣고 제 자존심까지 짓밟아버렸어요. 참 비루한 삶입니다." },
+                    { keywords: ['아내', '가족', '부인'], response: "제 아내는 이 모든 고통을 묵묵히 견뎌준 사람입니다. 하지만 제가 그녀의 출산마저 제대로 돌보지 못했다는 사실이 저를 괴롭힙니다. 가장으로서의 무능함이 제 가족에게 고통을 안겨준 것이죠." },
+                    { keywords: ['구두', '신발', '아홉 켤레', '체면', '허세'], response: "구두는 저의 전부였습니다. 남들이 저를 '가난한 자'가 아닌, 최소한 '체면이 있는 지식인'으로 봐주기를 바라는 저의 처절한 몸부림이었어요. 그것이 저의 마지막 허세이자 방패였습니다." },
+                    
+                    { default: "예, 반갑습니다. 저 같은 비루한 사람에게 무슨 질문이 있으신지 모르겠습니다만... 제 삶의 절망적인 순간이나 구두에 대해 물어보셔도 좋습니다." }
+                ],
+                // 3. '강도' (사건 당시의 권 씨)의 응답 로직 - 절박함, 폭력의 상징성 (거친 말투)
+                '강도': [
+                    // New: Personality/Nature (as Burglar)
+                    { keywords: ['성격', '특징', '본성', '어떤 사람', '심리', '마음'], response: "나는 권 씨의 이성과 체면이 모두 무너진 절박함 그 자체다. 이 사회의 모순과 가난이 만들어낸 분노의 화신이자, 중산층의 위선에 맞서 무력하게 항변하는 파국적인 심리의 상징이지. 말이 통하지 않는 절망 상태를 표현한다." },
+                    // Refined: Mockery/Insult felt by Burglar (Corrected) - Addressing '애교스럽다'
+                    { keywords: ['조롱', '모멸감', '모욕', '무시', '감정', '애교'], response: "조롱은 나를 인간 이하로 만든 것이다. 나의 자존심이 아니라 **나의 서툰 행위**가 조롱당했을 때, 나는 더 이상 권 씨가 아니었다. '강도조차 제대로 못하는 실패자'라는 오 선생의 시선(애교스럽다)은 나에게 가장 큰 모멸감을 주었다. 그 분노가 나를 움직인 것이다!" },
+                    // *수정: '깨끗한 구두'를 최우선으로 배치하고 키워드 확장*
+                    // New: Clean Shoes for Crime (Crucial symbolism)
+                    { keywords: ['깨끗한 구두', '신고 간', '구두를 신은', '강도 구두', '신발', '구두', '의미', '상징', '중요'], response: "내가 왜 깨끗한 구두를 신었냐고? 강도질을 하는 순간에도, 나는 내가 '지식인'임을, '중산층의 일원'임을 포기하지 않은 거다. 가장 비천한 짓을 하면서도 가장 고귀한 신발을 신는 것. 그것이야말로 이 사회가 나를 어떻게 파멸시켰는지 보여주는 나의 최후의, 가장 강력한 항변이었다. 구두는 내 존엄성이었기 때문에, 범행을 할 때조차 그걸 포기할 수 없었다." },
+                    
+                    // New: 범행 동기 (돈/목적) - 2순위
+                    { keywords: ['목적', '돈', '훔친', '왜 털', '이유', '범행', '사건'], response: "돈? 돈은 필요 없었다. 나는 무언가를 '빼앗으려' 한 게 아니야. 세상의 부조리에 대한 내 분노가 이 지경에 이르렀음을 누군가 알아주길 바란 것이다. 내 비명 소리였지. 아무것도 훔치지 않은 것이 나의 마지막 자존심이다." },
+
+                    // New: Drinking/Crime (Specific to alcohol) - 3순위
+                    { keywords: ['술', '마신', '맨정신', '음주', '취해서'], response: "맨정신으로는 할 수 없는 짓이었다. 술은 나에게 용기가 아니라, 잠시나마 '권 씨'라는 껍데기를 벗어던질 수 있는 망각을 주었다. 지식인이 아니라, 그저 살기 위해 발악하는 짐승이 되기 위한 의식이었다. 이성은 나를 막을 뿐이었다." },
+                    
+                    // New: 장소 선택
+                    { keywords: ['하필', '오 선생', '왜 그 집', '선생님 집', '이웃'], response: "왜 하필 그 집이었냐고? 가장 가까이에서, 가장 안온하게 중산층의 삶을 누리고 있는 자에게 내 절망을 보여주고 싶었다. 그는 나를 이해하는 척했지만, 결국 나와 다른 세상 사람이었지. 나는 그 위선적인 평화를 깨고 싶었어." },
+
+                    // Refined: Kwon Leaving (Corrected) - Focus on total loss of face
+                    { keywords: ['나갔다', '떠났다', '결국 사라진', '이사', '결말', '이유'], response: "사라지는 것 외에 뭘 할 수 있었겠나? 강도로서의 항의도, 깨끗한 구두로 상징되는 자존심도, 모두 실패했다. 나는 중산층에게 **동정을 받은 실패자**가 되었다. 나는 이 세상에서 인정받지 못했어. **내 실패를 인정하고, 내 존재 자체가 짐이 되지 않기 위해 조용히 사라지는 길을 택한 것이다.**" },
+                    
+                    { default: "나에게는 시간이 없다. 가장 중요한 것이 무엇인지 빨리 말해라. 내 절박한 심정을 이해하려 하지 마라." }
+                ]
+            };
+
+            // 질문에 맞는 키워드 응답을 찾기 (더 구체적인 키워드가 위에 오도록 배열 순서 유지)
+            for (const item of responses[persona]) {
+                // Check if any keyword is included in the user message
+                if (item.keywords && item.keywords.some(k => msg.includes(k))) {
+                    return item.response;
+                }
+            }
+
+            // 기본 응답 찾기
+            const defaultResponseItem = responses[persona] ? responses[persona].find(item => item.default) : null;
+            
+            // 기본 응답 반환 (안전하게)
+            if (defaultResponseItem && defaultResponseItem.default) {
+                return defaultResponseItem.default;
+            }
+
+            // 최종 안전 장치: 예상치 못한 오류 시 기본 메시지 반환
+            return "죄송합니다. 현재 인물의 답변을 불러올 수 없습니다. 다시 시도해 주시겠습니까?";
+        }
+
+        /**
+         * 인물 선택 버튼 클릭 핸들러
+         * @param {string} persona - 선택된 인물 이름
+         */
+        function selectPersona(persona) {
+            activePersona = persona;
+            const cardButtons = document.querySelectorAll('.persona-card');
+            cardButtons.forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`btn-${persona.includes('오 선생') ? 'oh' : (persona === '권 씨' ? 'kwon' : 'burglar')}`).classList.add('active');
+
+            // 채팅 로그 초기화 및 새 인물의 환영 메시지 표시
+            chatLog.innerHTML = '';
+            showWelcomeMessage();
+        }
+
+        /**
+         * 사용자 메시지 전송 및 응답 처리
+         */
+        function sendMessage() {
+            const userMessage = userInput.value.trim();
+            if (userMessage === '') return;
+
+            // 1. 사용자 메시지 표시
+            addMessage(userMessage, 'User', getPersonaStyle('User'));
+            userInput.value = '';
+
+            // 2. 인물 응답 생성 및 표시
+            setTimeout(() => {
+                const botResponse = getPersonaResponse(activePersona, userMessage);
+                // ERROR FIX: activeResponse -> activePersona
+                addMessage(botResponse, activePersona, getPersonaStyle(activePersona));
+            }, 500); // 0.5초 딜레이를 주어 챗봇 응답처럼 보이게 함
+        }
+
+        // 페이지 로드 후 초기화
+        window.onload = () => {
+            selectPersona('오 선생'); // 기본으로 '오 선생' 선택
+        };
+
+    </script>
+</body>
+</html>
